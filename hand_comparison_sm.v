@@ -7,13 +7,34 @@ module PokerHandEvaluation(
     input clk,
     input start,
     input reset,
-    input [5:0] playerCards [0:1], // Player's two cards
-    input [5:0] dealerCards [0:1], // Dealer's two cards
-    input [5:0] communityCards [0:4], // Five community cards
-    output reg [1:0] result // 0 = dealer wins, 1 = player wins, 2 = tie
-    output reg [3:0] playerHand // 1 - 9
+    input [11:0] playerCards, // Flattened from [5:0] playerCards [0:1]
+    input [11:0] dealerCards, // Flattened from [5:0] dealerCards [0:1]
+    input [29:0] communityCards, // Flattened from [5:0] communityCards [0:4]
+    output reg [1:0] result,
+    output reg [3:0] playerHand,
     output reg qualify
 );
+
+// Redeclare internally as arrays
+reg [5:0] playerCardsArray [0:1];
+reg [5:0] dealerCardsArray [0:1];
+reg [5:0] communityCardsArray [0:4];
+
+// Unpack flattened inputs to arrays
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        playerCardsArray[0] <= playerCards[11:6];
+        playerCardsArray[1] <= playerCards[5:0];
+        dealerCardsArray[0] <= dealerCards[11:6];
+        dealerCardsArray[1] <= dealerCards[5:0];
+        communityCardsArray[0] <= communityCards[29:24];
+        communityCardsArray[1] <= communityCards[23:18];
+        communityCardsArray[2] <= communityCards[17:12];
+        communityCardsArray[3] <= communityCards[11:6];
+        communityCardsArray[4] <= communityCards[5:0];
+    end
+end
+
 
 // Array to hold the full hand (7 cards)
 reg [5:0] fullPlayerHand [0:6];
@@ -22,17 +43,29 @@ reg [5:0] fullDealerHand [0:6];
 reg [15:0] playerHandScore, dealerHandScore;
 reg [5:0] playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5;
 reg [5:0] dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5;
-reg [3:0]playerHandType;
+reg [3:0] playerHandType;
+reg [3:0] dealerHand;
+reg [5:0] playerKickers[0:4];
+reg [5:0] dealerKickers[0:4];
+
+integer k;
+integer break;
 
 // Functions to evaluate hands
-function integer evaluateHand(input [5:0] cards [0:6]);
+task evaluateHand;
+	input [5:0] card0, card1, card2, card3, card4, card5, card6;
+	output reg [15:0] handScore;
+    output reg [5:0] kicker1, kicker2, kicker3, kicker4, kicker5;
     integer i;
+	reg [5:0] cards [0:6];
     reg [12:0] ranks;
     reg [3:0] suits;
     reg [4:0] rankCount [0:12];
     integer maxRankCount, secondMaxRankCount, flush, flushSuit, flushHigh, straight, topStraight, maxStraightLength, currentLength, straightHigh;
     integer maxRank, secondMaxRank;
     integer kicker [0:5]; // Array to hold the top 5 kickers
+	integer kickerIdx;
+	integer evaluateHand;
 
     begin
         // Initialize
@@ -50,17 +83,21 @@ function integer evaluateHand(input [5:0] cards [0:6]);
         straightHigh = 0;
         maxRank = 63;
         secondMaxRank = 63;
+		kickerIdx = 0;
+		
+		cards[0] <= card0; cards[1] <= card1; cards[2] <= card2;
+        cards[3] <= card3; cards[4] <= card4; cards[5] <= card5; cards[6] <= card6;
 
 
         // Count occurrences of each rank and suit
-        for (i = 0; i <= 6; i++) 
+        for (i = 0; i <= 6; i = i + 1) 
         begin
-            ranks[cards[i] % 13] += 1;
-            suits[cards[i] / 13] += 1;
+            ranks[cards[i] % 13] = ranks[cards[i] % 13] + 1;
+            suits[cards[i] / 13] = suits[cards[i] / 13] + 1;
         end
 
         // Determine max rank and second max rank count
-        for (i = 0; i < 13; i++) 
+        for (i = 0; i < 13; i = i + 1) 
         begin
             if (ranks[i] > maxRankCount) 
             begin
@@ -77,7 +114,7 @@ function integer evaluateHand(input [5:0] cards [0:6]);
         end
 
         // Check for flush
-        for (i = 0; i < 4; i++) 
+        for (i = 0; i < 4; i = i + 1) 
         begin
             if (suits[i] >= 5)
             begin
@@ -88,7 +125,7 @@ function integer evaluateHand(input [5:0] cards [0:6]);
 
         if (flush)
         begin 
-            for (i = 12; i >= 0 && flushHigh == 63; i--) 
+            for (i = 12; i >= 0 && flushHigh == 63; i = i - 1) 
             begin
                 if ((ranks[i] > 0) && suits[i] == flushSuit) 
                 begin
@@ -105,10 +142,10 @@ function integer evaluateHand(input [5:0] cards [0:6]);
         end
         else
         begin
-            for (i = 0; i < 13; i++) 
+            for (i = 0; i < 13; i = i + 1) 
             begin
                 if (rankCount[i] > 0)
-                    currentLength += 1;
+                    currentLength = currentLength + 1;
                 else 
                     currentLength = 0;
 
@@ -122,17 +159,16 @@ function integer evaluateHand(input [5:0] cards [0:6]);
             straight = 1;
 
         
-        for (i = 0; i < 5; i++) 
+        for (i = 0; i < 5; i = i + 1) 
             kicker[i] = 63; // Initialize kickers
 
         // Identify Kickers (top 5 cards that are not part of the main component)
-        integer kickerIdx = 0;
-        for (i = 12; i >= 0 && kickerIdx < 5; i--) 
+        for (i = 12; i >= 0 && kickerIdx < 5; i = i - 1) 
         begin
             if (i != maxRank && i != secondMaxRank && ranks[i] > 0) 
             begin
                 kicker[kickerIdx] = i;
-                kickerIdx++;
+                kickerIdx = kickerIdx + 1;
             end
         end
 
@@ -160,32 +196,68 @@ function integer evaluateHand(input [5:0] cards [0:6]);
                 evaluateHand = 2000 + (secondMaxRank + 1) * 20 + maxRank; // Two Pair
         end 
         else if (maxRankCount == 2) 
-            evaluateHand = 1000 + maxRank; // One Pair
+            evaluateHand = 1000 + maxRank; // One PairhandScore
         else 
             evaluateHand = kicker[0]; // High Card
+			
+		handScore = evaluateHand;
 
-        evaluateHand = {evaluateHand, kicker[0], kicker[1], kicker[2], kicker[3], kicker[4]}
+        // evaluateHand = {evaluateHand, kicker[0], kicker[1], kicker[2], kicker[3], kicker[4]};
+		kicker1 = kicker[0];
+        kicker2 = kicker[1];
+        kicker3 = kicker[2];
+        kicker4 = kicker[3];
+        kicker5 = kicker[4];
     end
-endfunction
+endtask
 
 // Combine and evaluate hands
 always @(posedge clk) 
 begin
     if (reset)
+	begin
         result <= 2'bx;
         playerHand <= 4'bx;
+        qualify <= 1'bx;
+	end
     else if (!start)
+	begin
         result <= result;
         playerHand <= playerHand;
+        qualify <= qualify;
+	end
     else 
     begin
         // Combine cards into full hands
-        fullPlayerHand = {playerCards[0], playerCards[1], communityCards[0], communityCards[1], communityCards[2], communityCards[3], communityCards[4]};
-        fullDealerHand = {dealerCards[0], dealerCards[1], communityCards[0], communityCards[1], communityCards[2], communityCards[3], communityCards[4]};
+        fullPlayerHand[0] = playerCardsArray[0];
+        fullPlayerHand[1] = playerCardsArray[1];
+        fullPlayerHand[2] = communityCardsArray[0];
+        fullPlayerHand[3] = communityCardsArray[1];
+        fullPlayerHand[4] = communityCardsArray[2];
+        fullPlayerHand[5] = communityCardsArray[3];
+        fullPlayerHand[6] = communityCardsArray[4];
+
+        fullDealerHand[0] = dealerCardsArray[0];
+        fullDealerHand[1] = dealerCardsArray[1];
+        fullDealerHand[2] = communityCardsArray[0];
+        fullDealerHand[3] = communityCardsArray[1];
+        fullDealerHand[4] = communityCardsArray[2];
+        fullDealerHand[5] = communityCardsArray[3];
+        fullDealerHand[6] = communityCardsArray[4];
 
         // Evaluate each hand
-        {playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5} = evaluateHand(fullPlayerHand);
-        {dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5} = evaluateHand(fullDealerHand);
+        // {playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5} = evaluateHand(fullPlayerHand);
+        // {dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5} = evaluateHand(fullDealerHand);
+		
+		// evaluateHand(fullPlayerHand, playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5);
+        // evaluateHand(fullDealerHand, dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5);
+		evaluateHand(fullPlayerHand[0], fullPlayerHand[1], fullPlayerHand[2], 
+             fullPlayerHand[3], fullPlayerHand[4], fullPlayerHand[5], fullPlayerHand[6],
+             playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5);
+			 
+		evaluateHand(fullDealerHand[0], fullDealerHand[1], fullDealerHand[2], 
+             fullDealerHand[3], fullDealerHand[4], fullDealerHand[5], fullDealerHand[6],
+             dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5);
 
         playerHandType = playerHandScore / 1000;
         playerHand = playerHandType;
@@ -206,11 +278,22 @@ begin
             
             if (playerHandType <= 3)
             begin
-                reg [5:0] playerKickers[0:4] = {playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5};
-                reg [5:0] dealerKickers[0:4] = {dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5};
+                // playerKickers[0:4] = {playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5};
+                // dealerKickers[0:4] = {dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5};
+				playerKickers[0] <= playerKicker1;
+				playerKickers[1] <= playerKicker2;
+				playerKickers[2] <= playerKicker3;
+				playerKickers[3] <= playerKicker4;
+				playerKickers[4] <= playerKicker5;
 
-                integer k = 0;
-                integer break = 0;
+				dealerKickers[0] <= dealerKicker1;
+				dealerKickers[1] <= dealerKicker2;
+				dealerKickers[2] <= dealerKicker3;
+				dealerKickers[3] <= dealerKicker4;
+				dealerKickers[4] <= dealerKicker5;
+
+                k = 0;
+                break = 0;
 
                 while ((k < 5) && (!break)) 
                 begin
@@ -229,17 +312,17 @@ begin
                     end
                     k = k + 1;
 
-                    if ((playerHandType == 2) && (k = 1)) // If two pair hand
+                    if ((playerHandType == 2) && (k == 1)) // If two pair hand
                     begin
                         result = 2;
                         break = 1;
                     end
-                    else if ((playerHandType == 3) && (k = 2)) // If trips hand
+                    else if ((playerHandType == 3) && (k == 2)) // If trips hand
                     begin
                         result = 2;
                         break = 1;
                     end
-                    else if ((playerHandType == 1) && (k = 3)) // If one pair hand
+                    else if ((playerHandType == 1) && (k == 3)) // If one pair hand
                     begin
                         result = 2;
                         break = 1;
