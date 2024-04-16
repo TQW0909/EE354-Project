@@ -12,15 +12,16 @@ module UltimateTexasHoldem(
 
     // State encoding
     localparam INIT               = 4'd0,
-               DEAL               = 4'd1,
-               PRE_FLOP           = 4'd2,
-               FLOP               = 4'd3,
-               POST_FLOP          = 4'd4,
-               TURN_RIVER         = 4'd5,
-               FINAL_DECISION     = 4'd6,
-               SHOWDOWN           = 4'd7,
-               RESULT             = 4'd8,
-               FINISH             = 4'd9;
+               DEAL_CARDS         = 4'd1,
+			   PROCESS_CARDS      = 4'd2,
+               PRE_FLOP           = 4'd3,
+               FLOP               = 4'd4,
+               POST_FLOP          = 4'd5,
+               TURN_RIVER         = 4'd6,
+               FINAL_DECISION     = 4'd7,
+               SHOWDOWN           = 4'd8,
+               RESULT             = 4'd9,
+               FINISH             = 4'd10;
                UNK                = 4'dX;
 
     // State register
@@ -38,7 +39,10 @@ module UltimateTexasHoldem(
     reg [3:0] playerHand;
     reg qualify;
     reg compareHands;
-
+	reg draw_card = 0;
+	
+	wire [5:0] dealt_cards[8:0];
+	wire all_cards_dealt;  
     HandEvaluation PokerHandEvaluation(
         .clk(clk),
         .start(compareHands),
@@ -50,7 +54,16 @@ module UltimateTexasHoldem(
         .playerHand(playerHand),
         .qualify(qualify)
     );
-
+	
+	card_game card_dealer(
+		.clk(clk),
+		.reset(reset),
+		.draw_card(draw_card),  
+		.dealt_cards(dealt_cards),
+		.all_cards_dealt(all_cards_dealt)
+	);
+	
+	
     // State transition logic   
     always @ (posedge clk, posedge reset) 
     begin
@@ -71,23 +84,34 @@ module UltimateTexasHoldem(
                 INIT: 
                 begin
                     state <= DEAL;
-
+					draw_card <= 1; // start dealing cards
                     currentAnte <= anteBet; // Set the initial bets from inputs
                     currentBlind <= blindBet;
                 end
 
-                DEAL:
+                DEAL_CARDS:
                 begin
-                    state <= PRE_FLOP;
-                    
-                    // Assign player and dealer hand (2 cards) and 5 community card
-                    playerCards <= ;
-                    dealerCards <= ;
-                    communityCards <= ;
-
+					//Deal the cards until all 9 are dealt_cards
+					if(all_cards_dealt) begin
+						draw_card <= 0;
+						state <= PROCESS_CARDS;
+					end
                     // Show the player's hand
 
                 end
+				
+				PROCESS_CARDS:
+				begin
+					// Assign player and dealer hand (2 cards) and 5 community card
+					{playerCards[0], playerCards[1]} <= {dealt_cards[0], dealt_cards[1]};
+					{dealerCards[0], dealerCards[1]} <= {dealt_cards[2], dealt_cards[3]};
+					
+					{communityCards[0], communityCards[1], communityCards[2], communityCards[3], communityCards[4]} <= 
+						{dealt_cards[4], dealt_cards[5], dealt_cards[6], dealt_cards[7], dealt_cards[8]};
+					
+					state <= PRE_FLOP;
+					
+				end
 
                 PRE_FLOP: 
                 begin

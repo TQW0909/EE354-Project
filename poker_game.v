@@ -1,44 +1,41 @@
 module card_game(
     input clk,
     input reset,
-    input draw_card,  // Signal to draw a card
-    output reg [5:0] dealt_card,  // Outputs the card number
-    output reg valid_card  // Indicates if the dealt card is valid
+    input draw_card,   // Signal to draw multiple cards
+    output reg [5:0] dealt_cards[8:0],  // Outputs the array of card numbers
+    output reg all_cards_dealt  // Indicates all required cards have been dealt
 );
 
-// Constants and Registers
 localparam NUM_CARDS = 52;
+localparam NUM_DEALS = 9; // Total cards to deal at once
 reg [5:0] deck[NUM_CARDS-1:0];  // Array of cards
-reg [NUM_CARDS-1:0] dealt_flags;  // Dealing flags for each card
 reg [5:0] random_index;  // Randomly generated index
+integer deal_count;  // Counter for the number of cards dealt
 
-// PRNG instance (Assuming you have a module ready for generating random numbers)
-wire [5:0] random_value;  // Connect this to a PRNG module
+// PRNG instance
+wire [5:0] random_value;
 prng random_val_gen(.clk(clk), .reset(reset), .random_out(random_value));
 
-// Initialize the deck and flags
-integer i;
 initial begin
-    for (i = 0; i < NUM_CARDS; i = i + 1) begin
-        deck[i] = i;  // Set each card's unique identifier
-        dealt_flags[i] = 0;  // All cards are initially not dealt
+    for (integer i = 0; i < NUM_CARDS; i = i + 1) begin
+        deck[i] = i;  // Initialize deck
     end
 end
 
-// Handle card drawing
 always @(posedge clk) begin
     if (reset) begin
-        for (i = 0; i < NUM_CARDS; i = i + 1)
-            dealt_flags[i] <= 0;
-    end else if (draw_card) begin
-        random_index <= random_value % NUM_CARDS;  
-        if (!dealt_flags[random_index]) begin  // Check if the card has not been dealt
-            dealt_card <= deck[random_index];  // Assign the card value
-            dealt_flags[random_index] <= 1;  // Mark this card as dealt
-            valid_card <= 1;  
-        end else begin
-            valid_card <= 0;  // No valid card was dealt, all are taken or collision
+        deal_count <= 0;
+        all_cards_dealt <= 0;
+    end else if (draw_card && deal_count < NUM_DEALS) begin
+        random_index <= random_value % NUM_CARDS;
+        dealt_cards[deal_count] <= deck[random_index];  // Assign the card value
+        deal_count <= deal_count + 1;
+        if (deal_count == NUM_DEALS) begin
+            all_cards_dealt <= 1;  // Signal that all cards have been dealt
         end
+    end else if (!draw_card) begin
+        deal_count <= 0;  // Reset deal count if draw_card is not active
+        all_cards_dealt <= 0;  // Reset dealt status
     end
 end
 
