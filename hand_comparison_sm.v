@@ -12,28 +12,14 @@ module PokerHandEvaluation(
     input [29:0] communityCards, // Flattened from [5:0] communityCards [0:4]
     output reg [1:0] result,
     output reg [3:0] playerHand,
-    output reg qualify
+    output reg qualify,
+	output reg done
 );
 
 // Redeclare internally as arrays
 reg [5:0] playerCardsArray [0:1];
 reg [5:0] dealerCardsArray [0:1];
 reg [5:0] communityCardsArray [0:4];
-
-// Unpack flattened inputs to arrays
-always @(posedge clk or posedge reset) begin
-    if (reset) begin
-        playerCardsArray[0] <= playerCards[11:6];
-        playerCardsArray[1] <= playerCards[5:0];
-        dealerCardsArray[0] <= dealerCards[11:6];
-        dealerCardsArray[1] <= dealerCards[5:0];
-        communityCardsArray[0] <= communityCards[29:24];
-        communityCardsArray[1] <= communityCards[23:18];
-        communityCardsArray[2] <= communityCards[17:12];
-        communityCardsArray[3] <= communityCards[11:6];
-        communityCardsArray[4] <= communityCards[5:0];
-    end
-end
 
 
 // Array to hold the full hand (7 cards)
@@ -58,9 +44,8 @@ task evaluateHand;
     output reg [5:0] kicker1, kicker2, kicker3, kicker4, kicker5;
     integer i;
 	reg [5:0] cards [0:6];
-    reg [12:0] ranks;
-    reg [3:0] suits;
-    reg [4:0] rankCount [0:12];
+    reg [3:0] ranks[0:12];  // Each rank count can range from 0 to 13, requiring 4 bits
+	reg [2:0] suits[0:3];   // Each suit count can range from 0 to 13, requiring 4 bits (3 bits if strictly 0-12)
     integer maxRankCount, secondMaxRankCount, flush, flushSuit, flushHigh, straight, topStraight, maxStraightLength, currentLength, straightHigh;
     integer maxRank, secondMaxRank;
     integer kicker [0:5]; // Array to hold the top 5 kickers
@@ -68,9 +53,10 @@ task evaluateHand;
 	integer evaluateHand;
 
     begin
+	
+		$display("Starting hand evaluation at %t", $time);
+		
         // Initialize
-        ranks = 0;
-        suits = 0;
         maxRankCount = 0;
         secondMaxRankCount = 0;
         flush = 0;
@@ -85,8 +71,22 @@ task evaluateHand;
         secondMaxRank = 63;
 		kickerIdx = 0;
 		
-		cards[0] <= card0; cards[1] <= card1; cards[2] <= card2;
-        cards[3] <= card3; cards[4] <= card4; cards[5] <= card5; cards[6] <= card6;
+		for (i = 0; i <= 12; i = i + 1) 
+		begin
+			ranks[i] = 0;
+		end
+		for (i = 0; i <= 3; i = i + 1) 
+		begin
+			suits[i] = 0;
+		end
+		
+		
+		
+		cards[0] = card0; cards[1] = card1; cards[2] = card2;
+        cards[3] = card3; cards[4] = card4; cards[5] = card5; cards[6] = card6;
+		
+		$display("cards[0]: %d, cards[1]: %d, cards[2]: %d", cards[0], cards[1], cards[2]);
+        $display("cards[3]: %d, cards[4]: %d, cards[5]: %d, cards[6]: %d", cards[3], cards[4], cards[5], cards[6]);
 
 
         // Count occurrences of each rank and suit
@@ -95,6 +95,17 @@ task evaluateHand;
             ranks[cards[i] % 13] = ranks[cards[i] % 13] + 1;
             suits[cards[i] / 13] = suits[cards[i] / 13] + 1;
         end
+		
+		// After all calculations are done
+		$display("Final Ranks and Suits:");
+		for (i = 0; i < 13; i = i + 1) begin
+			$display("ranks[%d] = %d", i, ranks[i]);
+		end
+		for (i = 0; i < 4; i = i + 1) begin
+			$display("suits[%d] = %d", i, suits[i]);
+		end
+		
+		
 
         // Determine max rank and second max rank count
         for (i = 0; i < 13; i = i + 1) 
@@ -125,13 +136,14 @@ task evaluateHand;
 
         if (flush)
         begin 
-            for (i = 12; i >= 0 && flushHigh == 63; i = i - 1) 
-            begin
-                if ((ranks[i] > 0) && suits[i] == flushSuit) 
-                begin
-                    flushHigh = i;
-                end
-            end
+			for (i = 0; i <= 6; i = i + 1) 
+			begin
+				if (cards[i] / 13 == flushSuit)
+				begin
+					if ((flushHigh == 63) || ((cards[i] % 13) > flushHigh))
+						flushHigh = cards[i] % 13;
+				end
+			end
         end
 
         // Check for straight
@@ -144,14 +156,16 @@ task evaluateHand;
         begin
             for (i = 0; i < 13; i = i + 1) 
             begin
-                if (rankCount[i] > 0)
+                if (ranks[i] > 0)
                     currentLength = currentLength + 1;
                 else 
                     currentLength = 0;
 
                 if (currentLength > maxStraightLength) 
+				begin
                     maxStraightLength = currentLength;
                     straightHigh = i;
+				end
             end
         end
 
@@ -208,6 +222,8 @@ task evaluateHand;
         kicker3 = kicker[2];
         kicker4 = kicker[3];
         kicker5 = kicker[4];
+		
+		$display("Hand score: %d computed at %t", handScore, $time);
     end
 endtask
 
@@ -219,44 +235,29 @@ begin
         result <= 2'bx;
         playerHand <= 4'bx;
         qualify <= 1'bx;
+		done <= 0;
 	end
-    else if (!start)
-	begin
-        result <= result;
-        playerHand <= playerHand;
-        qualify <= qualify;
-	end
-    else 
+    else if (start)
     begin
-        // Combine cards into full hands
-        fullPlayerHand[0] = playerCardsArray[0];
-        fullPlayerHand[1] = playerCardsArray[1];
-        fullPlayerHand[2] = communityCardsArray[0];
-        fullPlayerHand[3] = communityCardsArray[1];
-        fullPlayerHand[4] = communityCardsArray[2];
-        fullPlayerHand[5] = communityCardsArray[3];
-        fullPlayerHand[6] = communityCardsArray[4];
-
-        fullDealerHand[0] = dealerCardsArray[0];
-        fullDealerHand[1] = dealerCardsArray[1];
-        fullDealerHand[2] = communityCardsArray[0];
-        fullDealerHand[3] = communityCardsArray[1];
-        fullDealerHand[4] = communityCardsArray[2];
-        fullDealerHand[5] = communityCardsArray[3];
-        fullDealerHand[6] = communityCardsArray[4];
-
-        // Evaluate each hand
-        // {playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5} = evaluateHand(fullPlayerHand);
-        // {dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5} = evaluateHand(fullDealerHand);
+		done = 0;
 		
-		// evaluateHand(fullPlayerHand, playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5);
-        // evaluateHand(fullDealerHand, dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5);
-		evaluateHand(fullPlayerHand[0], fullPlayerHand[1], fullPlayerHand[2], 
-             fullPlayerHand[3], fullPlayerHand[4], fullPlayerHand[5], fullPlayerHand[6],
+		playerCardsArray[0] = playerCards[11:6];
+        playerCardsArray[1] = playerCards[5:0];
+        dealerCardsArray[0] = dealerCards[11:6];
+        dealerCardsArray[1] = dealerCards[5:0];
+        communityCardsArray[0] = communityCards[29:24];
+        communityCardsArray[1] = communityCards[23:18];
+        communityCardsArray[2] = communityCards[17:12];
+        communityCardsArray[3] = communityCards[11:6];
+        communityCardsArray[4] = communityCards[5:0];
+		
+		
+		evaluateHand(playerCardsArray[0], playerCardsArray[1], communityCardsArray[0], 
+             communityCardsArray[1],communityCardsArray[2],communityCardsArray[3], communityCardsArray[4],
              playerHandScore, playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5);
 			 
-		evaluateHand(fullDealerHand[0], fullDealerHand[1], fullDealerHand[2], 
-             fullDealerHand[3], fullDealerHand[4], fullDealerHand[5], fullDealerHand[6],
+		evaluateHand(dealerCardsArray[0], dealerCardsArray[1], communityCardsArray[0],
+             communityCardsArray[1],communityCardsArray[2],communityCardsArray[3], communityCardsArray[4],
              dealerHandScore, dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5);
 
         playerHandType = playerHandScore / 1000;
@@ -266,6 +267,8 @@ begin
 
         if (dealerHand >= 2)
             qualify = 1;
+		else
+			qualify = 0;
 
 
         // Determine the winner using hand score and then kickers in case of a tie
@@ -278,19 +281,17 @@ begin
             
             if (playerHandType <= 3)
             begin
-                // playerKickers[0:4] = {playerKicker1, playerKicker2, playerKicker3, playerKicker4, playerKicker5};
-                // dealerKickers[0:4] = {dealerKicker1, dealerKicker2, dealerKicker3, dealerKicker4, dealerKicker5};
-				playerKickers[0] <= playerKicker1;
-				playerKickers[1] <= playerKicker2;
-				playerKickers[2] <= playerKicker3;
-				playerKickers[3] <= playerKicker4;
-				playerKickers[4] <= playerKicker5;
+				playerKickers[0] = playerKicker1;
+				playerKickers[1] = playerKicker2;
+				playerKickers[2] = playerKicker3;
+				playerKickers[3] = playerKicker4;
+				playerKickers[4] = playerKicker5;
 
-				dealerKickers[0] <= dealerKicker1;
-				dealerKickers[1] <= dealerKicker2;
-				dealerKickers[2] <= dealerKicker3;
-				dealerKickers[3] <= dealerKicker4;
-				dealerKickers[4] <= dealerKicker5;
+				dealerKickers[0] = dealerKicker1;
+				dealerKickers[1] = dealerKicker2;
+				dealerKickers[2] = dealerKicker3;
+				dealerKickers[3] = dealerKicker4;
+				dealerKickers[4] = dealerKicker5;
 
                 k = 0;
                 break = 0;
@@ -334,6 +335,7 @@ begin
             else
                 result = 2;
         end
+		done = 1; 
     end
 end
 
