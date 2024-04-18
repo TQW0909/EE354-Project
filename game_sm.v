@@ -29,6 +29,8 @@ module UltimateTexasHoldem(
 
 
     reg [5:0] currentAnte, currentBlind, currentPlay;
+    reg [8:0] won;
+    reg [5:0] lost;
     reg playerFolded;
     reg playerBetted;
 
@@ -43,16 +45,19 @@ module UltimateTexasHoldem(
 	
 	wire [53:0] dealt_cards;
 	wire all_cards_dealt;  
+    wire done;
+
     HandEvaluation PokerHandEvaluation(
         .clk(clk),
         .start(compareHands),
         .reset(reset),
-        .playerCards(playerCards),
-        .dealerCards(dealerCards),
-        .communityCards(communityCards),
+        .playerCards({playerCards[0], playerCards[1]}),
+        .dealerCards({dealerCards[0], dealerCards[1]}),
+        .communityCards({communityCards[0], communityCards[1], communityCards[2], communityCards[3], communityCards[4]}),
         .result(result),
         .playerHand(playerHand),
-        .qualify(qualify)
+        .qualify(qualify).
+        .done(done)
     );
 	
 	card_game card_dealer(
@@ -87,6 +92,9 @@ module UltimateTexasHoldem(
 					draw_card <= 1; // start dealing cards
                     currentAnte <= anteBet; // Set the initial bets from inputs
                     currentBlind <= blindBet;
+                    currentPlay <= 0;
+                    won <= 0;
+                    loss <= 0;
                 end
 
                 DEAL_CARDS:
@@ -193,39 +201,50 @@ module UltimateTexasHoldem(
                 begin
                     compareHands <= 0;
 
-                    if (result == 0) // Dealer wins
+                    if (done)
                     begin
-                        if (qualify)
-                            // Loose ante
-                        
-                        // Loose blind and play
 
+                        if (result == 0) // Dealer wins
+                        begin
+                            if (qualify)
+                                // Loose ante
+                                loss = loss + currentAnte;
+                            // Loose blind and play
+                            loss = loss + currentBlind;
+                            loss = loss + currentPlay;
+
+                        end
+                        else if (result == 1) // Player wins
+                        begin
+                            if (qualify)
+                                // Win ante
+                                win = win + currentAnte;
+                            // Win play
+                            win = win + currentPlay;
+                            
+                            if (playerHand == 4) // Straight
+                                // Win 1:1 blind
+                                win = win + currentBlind;
+                            else if (playerHand == 5) // Flush
+                                // Win 3:2 blind
+                                win = win + ((currentBlind * 3) / 2);
+                            else if (playerHand == 6) // Full House
+                                // Win 3:1 blind
+                                win = win + currentBlind * 3;
+                            else if (playerHand == 7) // Four of a Kind
+                                // Win 10:1 blind
+                                win = win + currentBlind * 10;
+                            else if (playerHand == 8) // Straight Flush
+                                // Win 50:1 blind
+                                win = win + currentBlind * 50;
+                            else if (playerHand == 9) // Royal Flush
+                                // Win 500:1 blind
+                                win = win + currentBlind * 500;
+                        end
+                        // else // Tie
+                            // Push blind ante and play
+                        state <= FINISH;
                     end
-                    else if (result == 1) // Player wins
-                    begin
-                        if (qualify)
-                            // Win ante
-                        
-                        // Win play
-                        
-                        if (playerHand == 4) // Straight
-                            // Win 1:1 blind
-                        else if (playerHand == 5) // Flush
-                            // Win 3:2 blind
-                        else if (playerHand == 6) // Full House
-                            // Win 3:1 blind
-                        else if (playerHand == 7) // Four of a Kind
-                            // Win 10:1 blind
-                        else if (playerHand == 8) // Straight Flush
-                            // Win 50:1 blind
-                        else if (playerHand == 9) // Royal Flush
-                            // Win 500:1 blind
-                    end
-
-                    else // Tie
-                        // Push blind ante and play
-
-                    state <= FINISH;
                 end
 
                 FINISH:
