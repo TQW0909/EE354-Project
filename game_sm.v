@@ -21,7 +21,7 @@ module UltimateTexasHoldem(
                FINAL_DECISION     = 4'd7,
                SHOWDOWN           = 4'd8,
                RESULT             = 4'd9,
-               FINISH             = 4'd10;
+               FINISH             = 4'd10,
                UNK                = 4'dX;
 
     // State register
@@ -41,7 +41,7 @@ module UltimateTexasHoldem(
     reg compareHands;
 	reg draw_card = 0;
 	
-	wire [5:0] dealt_cards[8:0];
+	wire [53:0] dealt_cards;
 	wire all_cards_dealt;  
     HandEvaluation PokerHandEvaluation(
         .clk(clk),
@@ -103,11 +103,19 @@ module UltimateTexasHoldem(
 				PROCESS_CARDS:
 				begin
 					// Assign player and dealer hand (2 cards) and 5 community card
-					{playerCards[0], playerCards[1]} <= {dealt_cards[0], dealt_cards[1]};
-					{dealerCards[0], dealerCards[1]} <= {dealt_cards[2], dealt_cards[3]};
+					playerCards[0] <= {dealt_cards[0], dealt_cards[1], dealt_cards[2], dealt_cards[3], dealt_cards[4], dealt_cards[5]};
+					playerCards[1] <= {dealt_cards[6], dealt_cards[7], dealt_cards[8], dealt_cards[9], dealt_cards[10], dealt_cards[11]};
 					
-					{communityCards[0], communityCards[1], communityCards[2], communityCards[3], communityCards[4]} <= 
-						{dealt_cards[4], dealt_cards[5], dealt_cards[6], dealt_cards[7], dealt_cards[8]};
+					dealerCards[0] <= {dealt_cards[12], dealt_cards[13], dealt_cards[14], dealt_cards[15], dealt_cards[16], dealt_cards[17]};
+					dealerCards[1] <= {dealt_cards[18], dealt_cards[19], dealt_cards[20], dealt_cards[21], dealt_cards[22], dealt_cards[23]};
+					
+					communityCards[0] <= {dealt_cards[24], dealt_cards[25], dealt_cards[26], dealt_cards[27], dealt_cards[28], dealt_cards[29]};
+					communityCards[1] <= {dealt_cards[30], dealt_cards[31], dealt_cards[32], dealt_cards[33], dealt_cards[34], dealt_cards[35]};
+					
+					communityCards[2] <= {dealt_cards[36], dealt_cards[37], dealt_cards[38], dealt_cards[39], dealt_cards[40], dealt_cards[41]};
+					
+					communityCards[3] <= {dealt_cards[42], dealt_cards[43], dealt_cards[44], dealt_cards[45], dealt_cards[46], dealt_cards[47]};
+					communityCards[4] <= {dealt_cards[48], dealt_cards[49], dealt_cards[50], dealt_cards[51], dealt_cards[52], dealt_cards[53]};
 					
 					state <= PRE_FLOP;
 					
