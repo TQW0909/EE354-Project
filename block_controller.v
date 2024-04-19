@@ -6,10 +6,25 @@ module block_controller(
 	input rst,
 	input up, input down, input left, input right,
 	input [9:0] hCount, vCount,
+	input [3:0] gameState,
 	output reg [11:0] rgb,
 	output reg [11:0] background
    );
 	// wire block_fill;
+
+	// State encoding
+    localparam INIT               = 4'd0,
+               DEAL_CARDS         = 4'd1,
+			   PROCESS_CARDS      = 4'd2,
+               PRE_FLOP           = 4'd3,
+               FLOP               = 4'd4,
+               POST_FLOP          = 4'd5,
+               TURN_RIVER         = 4'd6,
+               FINAL_DECISION     = 4'd7,
+               SHOWDOWN           = 4'd8,
+               RESULT             = 4'd9,
+               FINISH             = 4'd10,
+               UNK                = 4'dX;
 
 	wire player_fill;
 	
@@ -35,8 +50,36 @@ module block_controller(
 	always@ (*) begin
     	if(~bright)	//force black if not inside the display area
 			rgb = 12'b0000_0000_0000;
-		else if (player1_fill) 
-			rgb = 12'b1111_1111_1111;
+		else if (gameState == PROCESS_CARDS)
+		begin
+			if (player1_fill) 
+				rgb = 12'b1111_1111_1111; // White
+			else if (player2_fill)
+				rgb = 12'b1111_1111_1111;
+		end
+		else if (gameState == FLOP)
+		begin
+			if (community1_fill)
+				rgb = 12'b1111_1111_1111;
+			else if (community2_fill)
+				rgb = 12'b1111_1111_1111;
+			else if (community3_fill)
+				rgb = 12'b1111_1111_1111;
+		end
+		else if (gameState == TURN_RIVER)
+		begin
+			if (community4_fill)
+				rgb = 12'b1111_1111_1111;
+			else if (community5_fill)
+				rgb = 12'b1111_1111_1111;
+		end
+		else if (gameState == SHOWDOWN)
+		begin
+			if (dealer1_fill) 
+				rgb = 12'b1111_1111_1111;
+			else if (dealer2_fill)
+				rgb = 12'b1111_1111_1111;
+		end
 		else	
 			rgb=GREEN;
 	end
