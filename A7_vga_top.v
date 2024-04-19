@@ -48,6 +48,14 @@ module vga_top(
 	wire [3:0] anode;
 	wire [11:0] rgb;
 	wire rst;
+
+	// For game SM
+	wire ACK;
+	wire start_game;
+	wire [5:0] ante_blind_size;
+	wire [1:0] playerDecision;
+	wire [3:0] gameState;
+	wire gameActive;
 	
 	reg [3:0]	SSD;
 	wire [3:0]	SSD3, SSD2, SSD1, SSD0;
@@ -62,13 +70,25 @@ module vga_top(
 	  else
 			DIV_CLK <= DIV_CLK + 1'b1;
 	end
+	
+	UltimateTexasHoldem uth(
+   	.clk(ClkPort),
+    .reset(BtnC),
+    .ack(ACK),
+    .start(BtnD),  // Start a new game
+    .anteBet(ante_blind_size),  // Ante bet size
+    .blindBet(ante_blind_size), // Blind bet size
+	.check(BtnU),.bet(BtnL),.three_bet_fold(BtnR),
+    .gameState(gameState),
+    .gameActive(gameActive),
+	);
+
+
 	wire move_clk;
 	assign move_clk=DIV_CLK[19]; //slower clock to drive the movement of objects on the vga screen
 	wire [11:0] background;
 	display_controller dc(.clk(ClkPort), .hSync(hSync), .vSync(vSync), .bright(bright), .hCount(hc), .vCount(vc));
-	block_controller sc(.clk(move_clk), .bright(bright), .rst(BtnC), .up(BtnU), .down(BtnD),.left(BtnL),.right(BtnR),.hCount(hc), .vCount(vc), .rgb(rgb), .background(background));
-	
-
+	block_controller sc(.clk(move_clk), .bright(bright), .rst(BtnC), .up(BtnU), .down(BtnD),.left(BtnL),.right(BtnR),.hCount(hc), .vCount(vc), .gameState(gameState), .rgb(rgb), .background(background));
 
 	
 	assign vgaR = rgb[11 : 8];

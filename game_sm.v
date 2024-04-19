@@ -5,7 +5,9 @@ module UltimateTexasHoldem(
     input start,  // Start a new game
     input [5:0] anteBet,  // Ante bet size
     input [5:0] blindBet, // Blind bet size
-    input [1:0] playerDecision, // Player decisions: 0 = check, 1 = bet/ 2-bet / 4-bet, 2 = 3-bet, 3 = fold
+    input check, // Check (up)
+    input bet, // bet_ready & bet/ 2-bet /4-bet (left)
+    input three_bet_fold, // 3 bet or fold (right)
     output reg [3:0] gameState,
     output reg gameActive
 );
@@ -88,7 +90,9 @@ module UltimateTexasHoldem(
             case (state)
                 INIT: 
                 begin
-                    state <= DEAL;
+                    if (bet)
+                        state <= DEAL;
+
 					draw_card <= 1; // start dealing cards
                     currentAnte <= anteBet; // Set the initial bets from inputs
                     currentBlind <= blindBet;
@@ -104,7 +108,7 @@ module UltimateTexasHoldem(
 						draw_card <= 0;
 						state <= PROCESS_CARDS;
 					end
-                    // Show the player's hand
+                    
 
                 end
 				
@@ -127,22 +131,26 @@ module UltimateTexasHoldem(
 					
 					state <= PRE_FLOP;
 					
+                    // Show the player's hand
 				end
 
                 PRE_FLOP: 
                 begin
-                    state <= FLOP;
 
-                    if (playerDecision == 1) // 4-bet
+                    if (bet) // 4-bet
                     begin
                         currentPlay <= anteBet * 4;
                         playerBetted = 1;
+                        state <= FLOP;
                     end
-                    else if (playerDecision == 2) // 3-bet
+                    else if (three_bet_fold) // 3-bet
                     begin
                         currentPlay <= anteBet * 3;
                         playerBetted = 1;
+                        state <= FLOP;
                     end
+                    else if (check)
+                        state <= FLOP;
                 end
 
                 FLOP:
@@ -154,16 +162,20 @@ module UltimateTexasHoldem(
 
                 POST_FLOP:
                 begin
-                    state <= TURN_RIVER;
 
                     if (!playerBetted)
                     begin
-                        if (playerDecision == 1) // 2-bet
+                        if (bet) // 2-bet
                         begin
                             currentPlay <= anteBet * 2;
                             playerBetted = 1;
+                            state <= TURN_RIVER;
                         end
+                        else if (check)
+                            state <= TURN_RIVER;
                     end
+                    else
+                        state <= TURN_RIVER;
                 end
 
                 TURN_RIVER:
@@ -175,18 +187,21 @@ module UltimateTexasHoldem(
 
                 FINAL_DECISION:
                 begin
-                    state <= SHOWDOWN;
 
                     if (!playerBetted)
                     begin
-                        if (playerDecision == 1) // 1-bet
+                        if (check) // 1-bet
                         begin
                             currentPlay <= anteBet;
                             playerBetted = 1;
+                            state <= SHOWDOWN;
                         end
-                        else if (playerDecision == 3) // Fold
+                        else if (three_bet_fold) // Fold
                             playerFolded = 1;
+                            state <= SHOWDOWN;
                     end
+                    else
+                        state <= SHOWDOWN;
                 end
 
                 SHOWDOWN: 
