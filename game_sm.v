@@ -78,25 +78,31 @@ module UltimateTexasHoldem(
         begin
             state <= INIT;
 
+            draw_card <= 0;
             gameActive <= 0;
             currentAnte <= 0;
             currentBlind <= 0;
             currentPlay <= 0;
             playerFolded <= 0;
             playerBetted <= 0;
+            won <= 0;
+            loss <= 0;
         end 
-        else 
+        else if (start)
         begin
             case (state)
                 INIT: 
                 begin
                     if (bet)
+                        gameActive <= 1;
                         state <= DEAL;
 
 					draw_card <= 1; // start dealing cards
                     currentAnte <= anteBet; // Set the initial bets from inputs
                     currentBlind <= blindBet;
                     currentPlay <= 0;
+                    playerFolded <= 0;
+                    playerBetted <= 0;
                     won <= 0;
                     loss <= 0;
                 end
@@ -155,52 +161,46 @@ module UltimateTexasHoldem(
 
                 FLOP:
                 begin
-                    state <= POST_FLOP;
+                    if (playerBetted)
+                        state <= TURN_RIVER;
+                    else
+                        state <= POST_FLOP;
 
                     // Show first three cards of communityCards
                 end
 
                 POST_FLOP:
                 begin
-
-                    if (!playerBetted)
+                    if (bet) // 2-bet
                     begin
-                        if (bet) // 2-bet
-                        begin
-                            currentPlay <= anteBet * 2;
-                            playerBetted = 1;
-                            state <= TURN_RIVER;
-                        end
-                        else if (check)
-                            state <= TURN_RIVER;
+                        currentPlay <= anteBet * 2;
+                        playerBetted = 1;
+                        state <= TURN_RIVER;
                     end
-                    else
+                    else if (check)
                         state <= TURN_RIVER;
                 end
 
                 TURN_RIVER:
                 begin
-                    state <= FINAL_DECISION;
+                    if (playerBetted)
+                        state <= SHOWDOWN;
+                    else
+                        state <= FINAL_DECISION;
 
                     // Show last two cards of communityCards
                 end
 
                 FINAL_DECISION:
                 begin
-
-                    if (!playerBetted)
+                    if (check) // 1-bet
                     begin
-                        if (check) // 1-bet
-                        begin
-                            currentPlay <= anteBet;
-                            playerBetted = 1;
-                            state <= SHOWDOWN;
-                        end
-                        else if (three_bet_fold) // Fold
-                            playerFolded = 1;
-                            state <= SHOWDOWN;
+                        currentPlay <= anteBet;
+                        playerBetted = 1;
+                        state <= SHOWDOWN;
                     end
-                    else
+                    else if (three_bet_fold) // Fold
+                        playerFolded = 1;
                         state <= SHOWDOWN;
                 end
 
