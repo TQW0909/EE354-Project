@@ -28,6 +28,14 @@ module vga_top(
 	input BtnR,
 	input BtnL,
 	input BtnD,
+	input Sw0,
+	input Sw1, 
+	input Sw2, 
+	input Sw3, 
+	input Sw4, 
+	input Sw5, 
+	input Sw6, 
+	input Sw7,
 	//VGA signal
 	output hSync, vSync,
 	output [3:0] vgaR, vgaG, vgaB,
@@ -49,6 +57,8 @@ module vga_top(
 	wire [11:0] rgb;
 	wire rst;
 
+	wire [7:0] Xin;
+
 	// For game SM
 	wire ACK;
 	wire start_game;
@@ -56,11 +66,24 @@ module vga_top(
 	wire [1:0] playerDecision;
 	wire [3:0] gameState;
 	wire gameActive;
-	
+	wire move_clk;
+	wire [11:0] playerCardsFlatt;
+    wire [11:0] dealerCardsFlatt;
+    wire [29:0] communityCardsFlatt;
 	reg [3:0]	SSD;
 	wire [3:0]	SSD3, SSD2, SSD1, SSD0;
+	wire [3:0] SSD4, SSD5, SSD6, SSD7;
 	reg [7:0]  	SSD_CATHODES;
-	wire [1:0] 	ssdscan_clk;
+	wire [2:0] 	ssdscan_clk;
+	assign move_clk=DIV_CLK[19]; //slower clock to drive the movement of objects on the vga screen
+	assign Xin   =  {Sw7,  Sw6,  Sw5,  Sw4,  Sw3,  Sw2,  Sw1, Sw0};
+	wire [11:0] background;
+	
+	wire buttonU, buttonL, buttonR, buttonD, buttonC;
+	
+	wire [1:0] Final_result;
+	wire [8:0] win;
+    wire [5:0] loss;
 	
 	reg [27:0]	DIV_CLK;
 	always @ (posedge ClkPort, posedge Reset)  
@@ -71,24 +94,72 @@ module vga_top(
 			DIV_CLK <= DIV_CLK + 1'b1;
 	end
 	
+	
+	ee201_debouncer #(.N_dc(25)) ee201_debouncer_1 
+        (.CLK(ClkPort), .RESET(Reset), .PB(BtnL), .DPB( ), .SCEN(buttonL), .MCEN( ), .CCEN( ));
+	
+	ee201_debouncer #(.N_dc(25)) ee201_debouncer_2 
+        (.CLK(ClkPort), .RESET(Reset), .PB(BtnU), .DPB( ), .SCEN(buttonU), .MCEN( ), .CCEN( ));
+	
+	ee201_debouncer #(.N_dc(25)) ee201_debouncer_3 
+        (.CLK(ClkPort), .RESET(Reset), .PB(BtnD), .DPB( ), .SCEN(buttonD), .MCEN( ), .CCEN( ));
+	
+	ee201_debouncer #(.N_dc(25)) ee201_debouncer_4 
+        (.CLK(ClkPort), .RESET(Reset), .PB(BtnC), .DPB( ), .SCEN(buttonC), .MCEN( ), .CCEN( ));
+	
+	ee201_debouncer #(.N_dc(25)) ee201_debouncer_5 
+        (.CLK(ClkPort), .RESET(Reset), .PB(BtnR), .DPB( ), .SCEN(buttonR), .MCEN( ), .CCEN( ));
+	
 	UltimateTexasHoldem uth(
    	.clk(ClkPort),
     .reset(BtnC),
     .ack(ACK),
-    .start(BtnD),  // Start a new game
+    .start(Sw0),  // Start a new game
     .anteBet(ante_blind_size),  // Ante bet size
     .blindBet(ante_blind_size), // Blind bet size
-	.check(BtnU),.bet(BtnL),.three_bet_fold(BtnR),
+	.check(Sw1),
+	.bet(Sw2),
+	.three_bet_fold(Sw3), 
+	.playerCardsFlat(playerCardsFlatt), 
+	.dealerCardsFlat(dealerCardsFlatt), 
+	.communityCardsFlat(communityCardsFlatt),
     .gameState(gameState),
     .gameActive(gameActive),
+	.Final_result(Final_result),
+	.out_win(win),
+	.out_loss(loss)
 	);
-
-
-	wire move_clk;
-	assign move_clk=DIV_CLK[19]; //slower clock to drive the movement of objects on the vga screen
-	wire [11:0] background;
+	
+	
+	
+	
 	display_controller dc(.clk(ClkPort), .hSync(hSync), .vSync(vSync), .bright(bright), .hCount(hc), .vCount(vc));
-	block_controller sc(.clk(move_clk), .bright(bright), .rst(BtnC), .up(BtnU), .down(BtnD),.left(BtnL),.right(BtnR),.hCount(hc), .vCount(vc), .gameState(gameState), .rgb(rgb), .background(background));
+	//block_controller sc(.clk(move_clk), .bright(bright), .rst(BtnC), .up(BtnU), .down(BtnD),.left(BtnL),.right(BtnR),.hCount(hc), .vCount(vc), .gameState(gameState), .playerCard_one(playerCardsFlatt[11:6]), .playerCard_two(playerCardsFlatt[5:0]), 
+	//.dealerCard_one(dealerCardsFlatt[11:6]), .dealerCard_two(dealerCardsFlatt[5:0]), .comCard_one(communityCardsFlat[29:24]), .comCard_two(communityCardsFlatt[23:18]), .comCard_three(communityCardsFlatt[17:12]), .comCard_four(communityCardsFlatt[11:6]), .comCard_five(communityCardsFlat[5:0]) .rgb(rgb), .background(background));
+	block_controller sc(
+    .clk(move_clk), 
+    .bright(bright),
+	.mstClk(ClkPort),
+    .rst(BtnC), 
+    .up(BtnU), 
+    .down(BtnD),
+    .left(BtnL),
+    .right(BtnR),
+    .hCount(hc), 
+    .vCount(vc), 
+    .gameState(gameState), 
+    .playerCard_one(playerCardsFlatt[11:6]), 
+    .playerCard_two(playerCardsFlatt[5:0]), 
+    .dealerCard_one(dealerCardsFlatt[11:6]), 
+    .dealerCard_two(dealerCardsFlatt[5:0]), 
+    .comCard_one(communityCardsFlatt[29:24]), 
+    .comCard_two(communityCardsFlatt[23:18]), 
+    .comCard_three(communityCardsFlatt[17:12]), 
+    .comCard_four(communityCardsFlatt[11:6]), 
+    .comCard_five(communityCardsFlatt[5:0]),  
+    .rgb(rgb), 
+    .background(background)
+);  
 
 	
 	assign vgaR = rgb[11 : 8];
@@ -106,11 +177,15 @@ module vga_top(
 	
 	//SSDs display 
 	//to show how we can interface our "game" module with the SSD's, we output the 12-bit rgb background value to the SSD's
-	assign SSD3 = 4'b0000;
-	assign SSD2 = background[11:8];
-	assign SSD1 = background[7:4];
-	assign SSD0 = background[3:0];
-
+	assign SSD3 = loss[5:4];
+	assign SSD2 = loss[3:0];
+	assign SSD6 = win[8];
+	assign SSD5 = win[7:4];
+	assign SSD4 = win[3:0];
+	// assign SSD1 = background[7:4];
+	assign SSD0 = Final_result;
+	
+	assign SSD7 = gameState;
 
 	// need a scan clk for the seven segment display 
 	
@@ -133,24 +208,35 @@ module vga_top(
 	//  DIV_CLK[19]       |___________|           |___________|
 	//
 
-	assign ssdscan_clk = DIV_CLK[19:18];
-	assign An0	= !(~(ssdscan_clk[1]) && ~(ssdscan_clk[0]));  // when ssdscan_clk = 00
-	assign An1	= !(~(ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 01
-	assign An2	=  !((ssdscan_clk[1]) && ~(ssdscan_clk[0]));  // when ssdscan_clk = 10
-	assign An3	=  !((ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 11
-	// Turn off another 4 anodes
-	assign {An7, An6, An5, An4} = 4'b1111;
+	assign ssdscan_clk = DIV_CLK[20:18];
+	assign An0	= !(~(ssdscan_clk[2]) && ~(ssdscan_clk[1]) &&  ~(ssdscan_clk[0])); // when ssdscan_clk = 000
+	assign An1	= !(~(ssdscan_clk[2]) &&~(ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 001
+	assign An2	=  !(~(ssdscan_clk[2]) && (ssdscan_clk[1]) &&  ~(ssdscan_clk[0]));  // when ssdscan_clk = 010
+	assign An3	=  !(~(ssdscan_clk[2]) && (ssdscan_clk[1]) &&  (ssdscan_clk[0])); // when ssdscan_clk = 011
 	
-	always @ (ssdscan_clk, SSD0, SSD1, SSD2, SSD3)
+	assign An4	= !((ssdscan_clk[2]) && ~(ssdscan_clk[1]) &&  ~(ssdscan_clk[0]));  // when ssdscan_clk = 100
+	assign An5	= !((ssdscan_clk[2]) && ~(ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 101
+	assign An6	=  !((ssdscan_clk[2]) && (ssdscan_clk[1]) &&  ~(ssdscan_clk[0]));  // when ssdscan_clk = 110
+	assign An7	=  !((ssdscan_clk[2]) && (ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 111
+	// Turn off another 4 anodes
+	//assign {An7, An6, An5, An4} = 4'b1111;
+	
+	always @ (ssdscan_clk, SSD0, SSD1, SSD2, SSD3, SSD4, SSD5, SSD6, SSD7)
 	begin : SSD_SCAN_OUT
 		case (ssdscan_clk) 
-				  2'b00: SSD = SSD0;
-				  2'b01: SSD = SSD1;
-				  2'b10: SSD = SSD2;
-				  2'b11: SSD = SSD3;
+				  3'b000: SSD = SSD0;
+				  3'b001: SSD = SSD1;
+				  3'b010: SSD = SSD2;
+				  3'b011: SSD = SSD3;
+				  3'b100: SSD = SSD4;
+				  3'b101: SSD = SSD5;
+				  3'b110: SSD = SSD6;
+				  3'b111: SSD = SSD7;
 		endcase 
 	end
-
+	
+	
+	
 	// Following is Hex-to-SSD conversion
 	always @ (SSD) 
 	begin : HEX_TO_SSD

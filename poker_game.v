@@ -30,21 +30,24 @@ always @(posedge clk) begin
     if (reset) begin
         deal_count <= 0;
         all_cards_dealt <= 0;
-		is_random <= 1;
+		is_random <= 0;
     end
 	else if(!is_random) begin
 		random_index <= random_value % NUM_CARDS;
 		is_random <= 1;
 	end
 	else if (draw_card && deal_count < 54) begin
-		if(each_bit < 6) begin
+		if(random_index > 51)begin
+			is_random <= 0;
+		end
+		else if(each_bit < 6) begin
 			dealt_cards[deal_count] <= deck[random_index][each_bit];  // Assign the card value
 			deal_count <= deal_count + 1;
 			each_bit <= each_bit + 1;
 		end
-		if(each_bit >= 6) begin
+		else if(each_bit >= 6) begin
 			each_bit <= 0;
-			random_index <= random_value % NUM_CARDS;
+			is_random <= 0;
 		end
         
         if (deal_count == 53) begin
@@ -54,7 +57,7 @@ always @(posedge clk) begin
         deal_count <= 0;  // Reset deal count if draw_card is not active
         all_cards_dealt <= 0;  // Reset dealt status
 		each_bit <= 0;
-		is_random <= 0;
+		//is_random <= 0;
     end
 end
 

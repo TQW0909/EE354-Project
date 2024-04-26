@@ -65,7 +65,7 @@ module display_controller(
 		
 	always @(posedge clk25)
 		begin
-		if(hCount > 10'd143 && hCount < 10'd784 && vCount > 10'd34 && vCount < 10'd516)
+		if(hCount > 10'd143 && hCount < 10'd800 && vCount > 10'd34 && vCount < 10'd570)
 			bright <= 1;
 		else
 			bright <= 0;
