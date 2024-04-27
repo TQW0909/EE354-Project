@@ -44,8 +44,8 @@ task evaluateHand;
     output reg [5:0] kicker1, kicker2, kicker3, kicker4, kicker5;
     integer i;
 	reg [5:0] cards [0:6];
-    reg [3:0] ranks[0:12];  // Each rank count can range from 0 to 13, requiring 4 bits
-	reg [2:0] suits[0:3];   // Each suit count can range from 0 to 13, requiring 4 bits (3 bits if strictly 0-12)
+    reg [3:0] ranks[0:12];  
+	reg [2:0] suits[0:3];  
     integer maxRankCount, secondMaxRankCount, flush, flushSuit, flushHigh, straight, topStraight, maxStraightLength, currentLength, straightHigh;
     integer maxRank, secondMaxRank;
     integer kicker [0:5]; // Array to hold the top 5 kickers
@@ -216,7 +216,6 @@ task evaluateHand;
 			
 		handScore = evaluateHand;
 
-        // evaluateHand = {evaluateHand, kicker[0], kicker[1], kicker[2], kicker[3], kicker[4]};
 		kicker1 = kicker[0];
         kicker2 = kicker[1];
         kicker3 = kicker[2];
